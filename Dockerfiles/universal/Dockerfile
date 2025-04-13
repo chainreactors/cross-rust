@@ -6,8 +6,8 @@ RUN /common.sh
 COPY script/cmake.sh /
 RUN /cmake.sh
 
-ENV RUSTUP_DIST_SERVER="https://rsproxy.cn"
-ENV RUSTUP_UPDATE_ROOT="https://rsproxy.cn/rustup"
+# ENV RUSTUP_DIST_SERVER="https://rsproxy.cn"
+# ENV RUSTUP_UPDATE_ROOT="https://rsproxy.cn/rustup"
 ARG TOOLCHAIN_VERSION="nightly-2023-09-18"
 ENV RUSTUP_HOME=/root/rustup
 ENV CARGO_HOME=/root/cargo

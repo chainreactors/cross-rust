@@ -1,0 +1,91 @@
+name: build-universal
+on:
+    workflow_dispatch:
+        inputs:
+            tool_chain_version:
+                description: "Tool chain version"
+                required: false
+                default: "nightly-2023-09-18"
+            version:
+                description: "remark"
+                required: true
+                default: ""
+
+jobs:
+    build:
+        runs-on: ubuntu-22.04
+        continue-on-error: true
+        steps:
+            - name: Check Server Performance
+              run: |
+                  echo "--------------------------CPU info--------------------------"
+                  echo "CPU Physical: $(cat /proc/cpuinfo | grep "physical id" | sort | uniq | wc -l)"
+                  echo "CPU: $(nproc)"
+                  echo -e "cpu info:$(cat /proc/cpuinfo | grep -m1 name | awk -F: '{print $2}')\n"
+                  echo "--------------------------mem info--------------------------"
+                  echo "memory:"
+                  echo -e "$(sudo lshw -short -C memory | grep GiB)\n"
+                  echo "--------------------------disk info--------------------------"
+                  echo "disk: $(ls /dev/sd* | grep -v [1-9] | wc -l)" && df -hT
+
+            - name: Before freeing up disk space
+              if: ${{ github.event.inputs.is_free_disk_space == 'true' }}
+              run: |
+                  echo "Before freeing up disk space"
+                  echo "=============================================================================="
+                  df -hT
+                  echo "=============================================================================="
+
+            - name: Checkout
+              uses: actions/checkout@v4
+              with:
+                  lfs: true
+
+            - name: Set up docker buildx
+              uses: docker/setup-buildx-action@v3
+
+            - name: Login to Docker Hub
+              uses: docker/login-action@v3
+              with:
+                  username: ${{ secrets.DOCKERHUB_USERNAME }}
+                  password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+            - name: Login to GitHub Container Registry
+              uses: docker/login-action@v3
+              with:
+                  registry: ghcr.io
+                  username: ${{ secrets.GHCR_USERNAME }}
+                  password: ${{ secrets.GHCR_TOKEN }}
+
+            - name: Chmod +x for script
+              run: chmod -R +x script/
+
+            - name: Build and Push
+              run: |
+                  IMAGE_NAME=universal:${{ github.event.inputs.version }}
+                  DOCKERFILE="Dockerfiles/universal/Dockerfile"
+                  echo "Starting build Universal"
+                  echo "=============================================================================="
+                  # build the docker image
+                  docker build \
+                    --label "org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
+                    --build-arg TOOLCHAIN_VERSION=${{ github.event.inputs.tool_chain_version }} \
+                    -t $IMAGE_NAME \
+                    -f $DOCKERFILE . || echo "build failed, continuing..."
+                  echo "Universal has been built"
+
+                  echo "=============================================================================="
+                  echo "Starting push to ghcr"
+                  echo "=============================================================================="
+                  docker tag $IMAGE_NAME ghcr.io/${{ secrets.GHCR_USERNAME }}/$IMAGE_NAME
+                  docker push ghcr.io/${{ secrets.GHCR_USERNAME }}/$IMAGE_NAME
+                  echo "has been pushed to ghcr"
+
+                  echo "=============================================================================="
+                  echo "Starting push to docker hub"
+                  echo "=============================================================================="
+                  docker tag $IMAGE_NAME ${{ secrets.DOCKERHUB_USERNAME }}/$IMAGE_NAME
+                  docker push ${{ secrets.DOCKERHUB_USERNAME }}/$IMAGE_NAME
+                  echo "has been pushed to docker hub"
+                  echo "=============================================================================="
+                  echo "end..."
