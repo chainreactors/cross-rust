@@ -1,4 +1,4 @@
-FROM ubuntu:20.04 as rust-base
+FROM ubuntu:20.04 AS rust-base
 ENV DEBIAN_FRONTEND=noninteractive
 
 COPY script/common.sh script/lib.sh /
@@ -64,9 +64,6 @@ RUN tar xvf llvm-16.0-2023-03-06.tar && \
     cd rust-1.74.0 && \
     tar xvf malefic-1.74.0.tar && \
     rm -rf malefic-1.74.0.tar && \
-    rustup toolchain link ollvm16-rust-1.74.0 /repos/rust-1.74.0 && \
-    ln -sf $RUSTUP_HOME/toolchains/nightly-2023-09-18-x86_64-unknown-linux-gnu/bin/cargo /usr/local/bin/cargo
-
-ENV PATH=/usr/local/bin:$PATH
+    rustup toolchain link ollvm16-rust-1.74.0 /repos/rust-1.74.0 
 
 WORKDIR /root/src
