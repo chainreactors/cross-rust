@@ -1,3 +1,12 @@
+FROM ubuntu:20.04 AS ollvm-base
+WORKDIR /repos
+COPY ollvm16/* ./
+RUN tar xvf llvm-16.0-2023-03-06.tar && \
+    mkdir rust-1.74.0 && \
+    mv malefic-1.74.0.tar rust-1.74.0 && \
+    cd rust-1.74.0 && \
+    tar xvf malefic-1.74.0.tar
+
 FROM ubuntu:20.04 AS rust-base
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -55,15 +64,9 @@ RUN rustup target add x86_64-pc-windows-gnu \
     aarch64-apple-darwin
 
 # for ollvm
-COPY ollvm16/* /repos/
-WORKDIR /repos
-RUN tar xvf llvm-16.0-2023-03-06.tar && \
-    rm -rf llvm-16.0-2023-03-06.tar && \
-    mkdir rust-1.74.0 && \
-    mv malefic-1.74.0.tar rust-1.74.0 && \
-    cd rust-1.74.0 && \
-    tar xvf malefic-1.74.0.tar && \
-    rm -rf malefic-1.74.0.tar && \
-    rustup toolchain link ollvm16-rust-1.74.0 /repos/rust-1.74.0 
+COPY --from=ollvm-base /repos/rust-1.74.0 /repos/rust-1.74.0
+COPY --from=ollvm-base /repos/llvm-16.0-2023-03-06 /repos/llvm-16.0-2023-03-06
+
+RUN rustup toolchain link ollvm16-rust-1.74.0 /repos/rust-1.74.0 
 
 WORKDIR /root/src
