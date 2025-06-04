@@ -26,11 +26,13 @@ RUN /rust-and-xargo.sh ${TOOLCHAIN_VERSION}
 #COPY script/cargo/config.toml $CARGO_HOME/config.toml
 
 FROM rust-base AS installer
+RUN apt update -y && apt install wget -y
+
 WORKDIR /src
+RUN wget -O malefic-mutant https://github.com/chainreactors/malefic/releases/download/v0.1.0/malefic-mutant
 RUN git clone https://github.com/chainreactors/malefic.git \
     && cd /src/malefic \
     && cargo fetch \
-    && wget -O malefic-mutant https://github.com/chainreactors/malefic/releases/download/v0.1.0/malefic-mutant-x86_64-unknown-linux-musl
 
 FROM rust-base
 
