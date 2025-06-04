@@ -29,7 +29,8 @@ FROM rust-base AS installer
 WORKDIR /src
 RUN git clone https://github.com/chainreactors/malefic.git \
     && cd /src/malefic \
-    && cargo fetch
+    && cargo fetch \
+    && wget -O malefic-mutant https://github.com/chainreactors/malefic/releases/download/v0.1.0/malefic-mutant-x86_64-unknown-linux-musl
 
 FROM rust-base
 
@@ -79,5 +80,8 @@ RUN rustup toolchain link ollvm16-rust-1.74.0 /repos/rust-1.74.0
 ## add cache from installer
 COPY --from=installer /root/cargo/registry /root/cargo/registry
 COPY --from=installer /root/cargo/git /root/cargo/git
+COPY --from=installer /src/malefic-mutant /usr/local/bin/malefic-mutant
+
+RUN chmod +x /usr/local/bin/malefic-mutant
 
 WORKDIR /root/src
