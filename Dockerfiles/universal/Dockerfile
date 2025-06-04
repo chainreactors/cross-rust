@@ -23,7 +23,13 @@ ENV CARGO_HOME=/root/cargo
 COPY script/rust-and-xargo.sh /
 ENV PATH=$CARGO_HOME/bin:$PATH
 RUN /rust-and-xargo.sh ${TOOLCHAIN_VERSION}
-COPY script/cargo/config.toml $CARGO_HOME/config.toml
+#COPY script/cargo/config.toml $CARGO_HOME/config.toml
+
+FROM rust-base AS installer
+WORKDIR /src
+RUN git clone https://github.com/chainreactors/malefic.git \
+    && cd /src/malefic \
+    && cargo fetch
 
 FROM rust-base
 
@@ -45,11 +51,12 @@ RUN apt update && apt install -y --no-install-recommends \
     libz-mingw-w64-dev \
     mingw-w64 \
     && apt clean \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -f /usr/lib/gcc/i686-w64-mingw32/9.3-win32/libgcc_eh.a /usr/lib/gcc/i686-w64-mingw32/9.3-posix/libgcc_eh.a
 
-# for i686-pc-windows-gnu , needs to be executed at the end.
-COPY script/i686-mingw-w64/* /
-RUN /mingw-build.sh
+# for i686-pc-windows-gnu , replace libgcc_eh.a in i686-mingw-w64
+COPY script/i686-mingw-w64/win32/libgcc_eh.a /usr/lib/gcc/i686-w64-mingw32/9.3-win32/libgcc_eh.a
+COPY script/i686-mingw-w64/posix/libgcc_eh.a /usr/lib/gcc/i686-w64-mingw32/9.3-posix/libgcc_eh.a
 
 ENV CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=x86_64-w64-mingw32-gcc \
     CARGO_TARGET_I686_PC_WINDOWS_GNU_LINKER=i686-w64-mingw32-gcc \
@@ -67,6 +74,10 @@ RUN rustup target add x86_64-pc-windows-gnu \
 COPY --from=ollvm-base /repos/rust-1.74.0 /repos/rust-1.74.0
 COPY --from=ollvm-base /repos/llvm-16.0-2023-03-06 /repos/llvm-16.0-2023-03-06
 
-RUN rustup toolchain link ollvm16-rust-1.74.0 /repos/rust-1.74.0 
+RUN rustup toolchain link ollvm16-rust-1.74.0 /repos/rust-1.74.0
+
+## add cache from installer
+COPY --from=installer /root/cargo/registry /root/cargo/registry
+COPY --from=installer /root/cargo/git /root/cargo/git
 
 WORKDIR /root/src
