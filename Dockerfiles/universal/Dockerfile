@@ -32,7 +32,7 @@ WORKDIR /src
 RUN wget -O malefic-mutant https://github.com/chainreactors/malefic/releases/download/v0.1.0/malefic-mutant
 RUN git clone https://github.com/chainreactors/malefic.git \
     && cd /src/malefic \
-    && cargo fetch \
+    && cargo fetch
 
 FROM rust-base
 
