@@ -31,3 +31,6 @@ install_packages \
     libc6-dev \
     libclang-dev \
     pkg-config
+    
+apt clean
+rm -rf /var/cache/apt/archives/* /var/lib/apt/lists/*

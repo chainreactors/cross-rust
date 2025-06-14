@@ -1,11 +1,9 @@
 FROM ubuntu:20.04 AS ollvm-base
 WORKDIR /repos
 COPY ollvm16/* ./
-RUN tar xvf llvm-16.0-2023-03-06.tar && \
-    mkdir rust-1.74.0 && \
-    mv malefic-1.74.0.tar rust-1.74.0 && \
-    cd rust-1.74.0 && \
-    tar xvf malefic-1.74.0.tar
+RUN tar zxvf llvm-16.0-2023-03-06.tar.gz \
+    && mkdir rust-1.74.0 \
+    && tar zxvf malefic-1.74.0.tar.gz -C rust-1.74.0
 
 FROM ubuntu:20.04 AS rust-base
 ENV DEBIAN_FRONTEND=noninteractive
@@ -54,6 +52,7 @@ RUN apt update && apt install -y --no-install-recommends \
     libz-mingw-w64-dev \
     mingw-w64 \
     && apt clean \
+    && rm -rf /usr/share/doc/* /usr/share/info/* /usr/share/man/* \
     && rm -rf /var/lib/apt/lists/* \
     && rm -f /usr/lib/gcc/i686-w64-mingw32/9.3-win32/libgcc_eh.a /usr/lib/gcc/i686-w64-mingw32/9.3-posix/libgcc_eh.a
 
@@ -82,8 +81,6 @@ RUN rustup toolchain link ollvm16-rust-1.74.0 /repos/rust-1.74.0
 ## add cache from installer
 COPY --from=installer /root/cargo/registry /root/cargo/registry
 COPY --from=installer /root/cargo/git /root/cargo/git
-COPY --from=installer /src/malefic-mutant /usr/local/bin/malefic-mutant
-
-RUN chmod +x /usr/local/bin/malefic-mutant
+COPY --from=installer --chmod=755 /src/malefic-mutant /usr/local/bin/malefic-mutant
 
 WORKDIR /root/src

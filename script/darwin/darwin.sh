@@ -50,9 +50,14 @@ main() {
 
     mkdir -p /opt/osxcross
     TARGET_DIR=/opt/osxcross UNATTENDED=yes OSX_VERSION_MIN=10.7 ./build.sh
-
+    # delete man pages to reduce image size
+    rm -rf /opt/osxcross/SDK/MacOSX11.3.sdk/usr/share/man
+    
     purge_packages
 
+    apt clean
+    rm -rf /var/cache/apt/archives/* /var/lib/apt/lists/*
+    
     popd
 
     rm -rf "${td}"
