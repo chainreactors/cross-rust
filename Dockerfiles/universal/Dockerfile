@@ -27,7 +27,7 @@ FROM rust-base AS installer
 RUN apt update -y && apt install wget -y
 
 WORKDIR /src
-RUN wget -O malefic-mutant https://github.com/chainreactors/malefic/releases/download/v0.1.0/malefic-mutant-x86_64-unknown-linux-musl
+RUN wget -O malefic-mutant https://github.com/chainreactors/malefic/releases/latest/download/malefic-mutant-x86_64-unknown-linux-musl
 RUN git clone https://github.com/chainreactors/malefic.git \
     && cd /src/malefic \
     && cargo fetch
@@ -51,6 +51,7 @@ ENV CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER=x86_64-apple-darwin20.4-clang \
 RUN apt update && apt install -y --no-install-recommends \
     libz-mingw-w64-dev \
     mingw-w64 \
+    musl-tools \
     && apt clean \
     && rm -rf /usr/share/doc/* /usr/share/info/* /usr/share/man/* \
     && rm -rf /var/lib/apt/lists/* \
