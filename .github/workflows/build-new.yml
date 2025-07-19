@@ -1,21 +1,21 @@
-name: build-without-cache
+name: build-new
 on:
   workflow_dispatch:
     inputs:
-      targets:
-        description: 'Targets to build'
-        required: true
-        default: 'all'
       tool_chain_version:
         description: 'Tool chain version'
         required: false
-        default: 'stable'
-      remark:
-        description: 'remark'
-        required: false
-        default: '-beta'
+        default: 'nightly-2023-09-18'
+      version:
+        description: 'Image version tag'
+        required: true
+        default: ''
+      targets:
+        description: 'Build targets (comma-separated or "all")'
+        required: true
+        default: 'all'
       is_free_disk_space:
-        description: 'is_free_disk_space'
+        description: 'Free up disk space before build'
         required: false
         default: 'false'
 
@@ -65,6 +65,8 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - name: Set up docker buildx
         uses: docker/setup-buildx-action@v3
@@ -85,51 +87,75 @@ jobs:
       - name: Chmod +x for script
         run: chmod -R +x script/
 
-      - name: Pre build rust base
-        run: |
-          docker build --build-arg TOOLCHAIN_VERSION=${{ github.event.inputs.tool_chain_version }} -t rust-base:latest -f Dockerfiles/Dockerfile.base .
-
       - name: Parse and Find Dockerfiles for Targets
         id: set_targets
         run: |
           TARGETS="${{ github.event.inputs.targets }}"
           if [[ "$TARGETS" == "all" ]]; then
-            # Find all Dockerfile paths and extract the architecture part (e.g., aarch64-apple-darwin)
-            TARGETS=$(find Dockerfiles -type f -name 'Dockerfile.*' | grep -v 'Dockerfile.base' | sed -E 's|.*/Dockerfile\.||' | paste -sd ',')
+            # Find all Dockerfile paths in Dockerfiles/all/ and extract the target names
+            TARGETS=$(find Dockerfiles/all -type f -name 'Dockerfile.*' | sed -E 's|.*/Dockerfile\.||' | paste -sd ',')
           fi
           TARGETS_JSON=$(echo "[\"${TARGETS//,/\",\"}\"]")
           echo "TARGETS_JSON=${TARGETS_JSON}" >> $GITHUB_ENV
+          echo "Found targets: $TARGETS"
 
       - name: Build and Push
         run: |
-          echo "Starting build All targets"
+          echo "Starting build for targets in Dockerfiles/all/"
           echo "=============================================================================="
           TARGETS=$(echo $TARGETS_JSON | jq -r '.[]')
+          
+          # Build phase
           for TARGET in $TARGETS; do
-            echo "building for $TARGET"
-            IMAGE_NAME=$TARGET:${{ github.event.inputs.tool_chain_version }}${{ github.event.inputs.remark }}
-            DOCKERFILE=$(find Dockerfiles/*/*/*$TARGET -name 'Dockerfile.*')
-            # build the docker image
+            echo "Building for target: $TARGET"
+            IMAGE_NAME=$TARGET:${{ github.event.inputs.version }}
+            DOCKERFILE="Dockerfiles/all/Dockerfile.$TARGET"
+            
+            if [[ ! -f "$DOCKERFILE" ]]; then
+              echo "Warning: Dockerfile not found at $DOCKERFILE, skipping..."
+              continue
+            fi
+            
+            echo "Using Dockerfile: $DOCKERFILE"
+            # Build the docker image
             docker build \
               --label "org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
               --build-arg TOOLCHAIN_VERSION=${{ github.event.inputs.tool_chain_version }} \
-              --cache-from ghcr.io/${{ secrets.GHCR_USERNAME }}/$IMAGE_NAME
               -t $IMAGE_NAME \
               -f $DOCKERFILE . || echo "$TARGET build failed, continuing..."
-            echo "$TARGET has been built"
+            echo "$TARGET has been built successfully"
           done
+          
           echo "=============================================================================="
           echo "All targets have been built"
           echo "=============================================================================="
-          echo "Starting push to docker hub and ghcr"
+          echo "Starting push to GitHub Container Registry and Docker Hub"
           echo "=============================================================================="
-          for TARGET in $TARGETS; do
-            IMAGE_NAME=$TARGET:${{ github.event.inputs.tool_chain_version }}${{ github.event.inputs.remark }}
-            docker tag $IMAGE_NAME ghcr.io/${{ secrets.GHCR_USERNAME }}/$IMAGE_NAME
-            docker push ghcr.io/${{ secrets.GHCR_USERNAME }}/$IMAGE_NAME
-            docker tag $IMAGE_NAME ${{ secrets.DOCKERHUB_USERNAME }}/$IMAGE_NAME
-            docker push ${{ secrets.DOCKERHUB_USERNAME }}/$IMAGE_NAME
-          done
-          echo "=============================================================================="
-          echo "All targets have been pushed to docker hub and ghcr"
           
+          # Push phase
+          for TARGET in $TARGETS; do
+            IMAGE_NAME=$TARGET:${{ github.event.inputs.version }}
+            
+            # Check if image exists before pushing
+            if docker image inspect $IMAGE_NAME >/dev/null 2>&1; then
+              echo "Pushing $TARGET to registries..."
+              
+              # Push to GitHub Container Registry
+              echo "Pushing to ghcr.io..."
+              docker tag $IMAGE_NAME ghcr.io/${{ secrets.GHCR_USERNAME }}/$IMAGE_NAME
+              docker push ghcr.io/${{ secrets.GHCR_USERNAME }}/$IMAGE_NAME || echo "Failed to push $TARGET to ghcr.io"
+              
+              # Push to Docker Hub
+              echo "Pushing to Docker Hub..."
+              docker tag $IMAGE_NAME ${{ secrets.DOCKERHUB_USERNAME }}/$IMAGE_NAME
+              docker push ${{ secrets.DOCKERHUB_USERNAME }}/$IMAGE_NAME || echo "Failed to push $TARGET to Docker Hub"
+              
+              echo "$TARGET has been pushed to both registries"
+            else
+              echo "Warning: Image $IMAGE_NAME not found, skipping push..."
+            fi
+          done
+          
+          echo "=============================================================================="
+          echo "Build and push process completed"
+          echo "=============================================================================="

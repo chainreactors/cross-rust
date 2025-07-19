@@ -1,0 +1,69 @@
+FROM ubuntu:20.04 AS rust-base
+ENV DEBIAN_FRONTEND=noninteractive
+
+COPY script/common.sh script/lib.sh /
+RUN /common.sh
+COPY script/cmake.sh /
+RUN /cmake.sh
+
+# ENV RUSTUP_DIST_SERVER="https://rsproxy.cn"
+# ENV RUSTUP_UPDATE_ROOT="https://rsproxy.cn/rustup"
+ARG TOOLCHAIN_VERSION="nightly-2023-09-18"
+ENV RUSTUP_HOME=/root/rustup
+ENV CARGO_HOME=/root/cargo
+COPY script/rust-and-xargo.sh /
+ENV PATH=$CARGO_HOME/bin:$PATH
+RUN /rust-and-xargo.sh ${TOOLCHAIN_VERSION}
+#COPY script/cargo/config.toml $CARGO_HOME/config.toml
+
+FROM rust-base AS installer
+RUN apt update -y && apt install wget -y
+
+WORKDIR /src
+RUN wget -O malefic-mutant https://github.com/chainreactors/malefic/releases/latest/download/malefic-mutant-x86_64-unknown-linux-musl
+RUN git clone https://github.com/chainreactors/malefic.git \
+    && cd /src/malefic \
+    && cargo fetch
+
+FROM rust-base 
+
+# run these in separate steps, so we can cache MSVC between all images.
+COPY script/windows/msvc/*.sh /
+RUN /msvc-wine.sh 
+
+COPY script/windows/wine.sh /
+RUN /wine.sh
+
+# need windows-style perl for paths
+COPY script/perl.sh /
+RUN /perl.sh
+
+ARG ARCH=x64
+RUN /msvc-wine-symlink.sh $ARCH
+
+RUN mkdir -p /usr/lib/binfmt-support/ && \
+    rm -f /usr/lib/binfmt-support/run-detectors /usr/bin/run-detectors && \
+    ln -s /usr/bin/wine /usr/lib/binfmt-support/run-detectors && \
+    ln -s /usr/bin/wine /usr/bin/run-detectors
+
+ENTRYPOINT ["/msvc-windows-entry.sh"]
+
+ENV CROSS_SYSROOT=/opt/msvc/vc/tools/msvc/latest
+ENV CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER=link.exe \
+    CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUNNER=wine \
+    CC_x86_64_pc_windows_msvc=cl.exe \
+    CXX_x86_64_pc_windows_msvc=cl.exe \
+    PATH=/opt/msvc/bin/$ARCH:$PATH \
+    WINEPATH="$WINEPATH;C:/windows/syswow64;C:/windows/system32;/opt/msvc/bin/$ARCH" \
+    VSINSTALLDIR="/opt/msvc" \
+    VCINSTALLDIR="/opt/msvc/vc" \
+    VSCMD_ARG_TGT_ARCH=$ARCH
+
+## add cache from installer
+COPY --from=installer /root/cargo/registry /root/cargo/registry
+COPY --from=installer /root/cargo/git /root/cargo/git
+COPY --from=installer --chmod=755 /src/malefic-mutant /usr/local/bin/malefic-mutant
+
+RUN rustup target add x86_64-pc-windows-msvc
+
+WORKDIR /root/src
