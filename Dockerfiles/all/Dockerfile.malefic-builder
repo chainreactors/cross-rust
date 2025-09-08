@@ -43,7 +43,9 @@ COPY script/darwin/*.sh /
 RUN /darwin.sh
 RUN /darwin-symlink.sh
 ENV CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER=x86_64-apple-darwin20.4-clang \
+    CC_x86_64_apple_darwin=x86_64-apple-darwin20.4-clang \
     CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER=aarch64-apple-darwin20.4-clang \
+    CC_aarch64-apple-darwin=aarch64-apple-darwin20.4-clang \
     PATH=$PATH:/opt/osxcross/bin
 
 # for x86_64-pc-windows-gnu
